@@ -5,7 +5,6 @@ import os
 from nltk import download
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 # Define the Flask app and set the template folder path
@@ -15,21 +14,31 @@ app = Flask(__name__, template_folder='../templates')
 model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models/svm_classifier_C-1_deg-1_gam-scale_ker-linear_42.sav")
 model = load(open(model_path, "rb"))
 
+# Load the pre-fitted vectorizer
+vectorizer_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models/tfidf_vectorizer.sav")
+vectorizer = load(open(vectorizer_path, "rb"))
+
 class_dict = {
-    "0": "POSITIVE",
-    "1": "NEGATIVE"
+    "1": "POSITIVE",
+    "0": "NEGATIVE"
 }
 
+# Ensure wordnet and stopwords are downloaded once
+download("wordnet")
+download("stopwords")
+stop_words = stopwords.words("english")
+lemmatizer = WordNetLemmatizer()
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
         # Handle form submission
         val1 = str(request.form["val1"])
+
         def preprocess_text(text):
             # Remove any character that is not a letter (a-z) or white space ( )
             text = re.sub(r'[^a-z ]', " ", text)
-    
+
             # Remove white spaces
             text = re.sub(r'\s+[a-zA-Z]\s+', " ", text)
             text = re.sub(r'\^[a-zA-Z]\s+', " ", text)
@@ -38,39 +47,30 @@ def index():
             text = re.sub(r'\s+', " ", text.lower())
 
             # Remove tags
-            text = re.sub("&lt;/?.*?&gt;"," &lt;&gt; ", text)
+            text = re.sub("&lt;/?.*?&gt;", " &lt;&gt; ", text)
 
             return text.split()
 
         val1 = preprocess_text(val1)
-        print(val1)
 
-        download("wordnet")
-        lemmatizer = WordNetLemmatizer()
-
-        download("stopwords")
-        stop_words = stopwords.words("english")
-
-        def lemmatize_text(words, lemmatizer = lemmatizer):
+        def lemmatize_text(words, lemmatizer=lemmatizer):
             tokens = [lemmatizer.lemmatize(word) for word in words]
             tokens = [word for word in tokens if word not in stop_words]
             tokens = [word for word in tokens if len(word) > 3]
             return tokens
 
         val1 = lemmatize_text(val1)
-        print(val1)
-        tokens_list = val1
+
+        # Join tokens back into a single string for vectorizer
         tokens_list = [" ".join(val1)]
-        print(tokens_list)
 
-        vectorizer = TfidfVectorizer(max_features = 5000, max_df = 0.8, min_df = 5)
-        val1 = vectorizer.fit_transform(tokens_list).toarray()
-        val1[:5]
-        #print(val1[:5])
+        # Use the pre-trained vectorizer to transform the input
+        val1 = vectorizer.transform(tokens_list).toarray()
 
-        data = [[val1]] #CHANGED THIS
-        print(data)
-        #data = [val1]
+        # Ensure the correct shape for model input
+        data = val1
+
+        # Make a prediction using the SVM model
         prediction = str(model.predict(data)[0])
         pred_class = class_dict[prediction]
     else:
