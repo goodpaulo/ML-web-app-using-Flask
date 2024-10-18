@@ -6,6 +6,8 @@ from nltk import download
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
+#website link https://ml-web-app-using-flask-e8bg.onrender.com/
+
 
 # Define the Flask app and set the template folder path
 app = Flask(__name__, template_folder='../templates')
